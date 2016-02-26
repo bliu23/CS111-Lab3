@@ -588,7 +588,24 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
-	return 0;
+	uint32_t blockno = 2; // bitmap starts at block 2
+	uint32_t *vector = ?? // starts at block 2, not sure what vector means
+
+	for (int i = 0; i < ospfs_super->os_nblocks; i++) // 8192 bits total => ospfs_super->os_nblocks
+	{
+		if (bitvector_test(vector, i)) // 1 = free
+		{
+			bitvector_clear(vector, i); // allocate by setting it to non-free (0)
+			return block number;
+		}
+	} // update vector??
+
+	//bitvector_clear // sets it to 0
+	//bitvector_set // sets it to 1
+	//bitvector_test // return val of bitvector
+
+
+	return 0; // disk full, no blocks free
 }
 
 
@@ -607,6 +624,12 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
+	// boot sector = 0
+	// superblock = 1
+	// bitmap = 2
+	// inode = 2 + N bits (N = ospfs_super->os_nblocks)
+	if (blockno >= 2 && blockno != (2 + ospfs_super->os_nblocks))
+		bitvector_set(vector, blockno); // what is vector???
 }
 
 
