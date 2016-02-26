@@ -481,13 +481,13 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 if(od->od_ino) {	//if this isn't 0
 		 	entry_oi = ospfs_inode(od->od_ino);	//return pointer to the inode
 		 	if(entry_oi->oi_ftype == OSPFS_FTYPE_REG) {
-		 		ok_so_far = fill_dir(direcnt, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_REG);
+		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_REG);
 		 	}
 		 	else if(entry_oi->oi_ftype == OSPFS_FTYPE_DIR) {
-		 		//TODO
+		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_DIR);
 		 	}
-		 	else {
-		 		//TODO
+		 	else { // entry_oi->oi_ftype == OSPFS_FTYPE_SYMLINK
+		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LINK);
 		 	}
 
 		 	if(ok_so_far >= 0) {
@@ -498,9 +498,12 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 	f_pos += OSPFS_DIRENTRY_SIZE;
 		 }
 
-
-		 //r = 1;		/* Fix me! */
-		 //break;		/* Fix me! */
+		 // if at end of directory
+		 if (f_pos == NULL)	 //?????? 
+		 {
+		 	r = 1;
+		 	break;
+		 }
 		
 		
 	}
