@@ -971,11 +971,21 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	int r = 0;
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
-	        /* EXERCISE: Your code here */
+		// need to add blocks
+		if (add_block(oi) == ENOSPC) // if fail, go back to old_size
+		{
+			while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size))
+			{
+				remove_block(oi);
+			}
+		}
+
 		return -EIO; // Replace this line
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
+		// need to remove blocks
+
 		return -EIO; // Replace this line
 	}
 
