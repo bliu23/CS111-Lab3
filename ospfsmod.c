@@ -832,8 +832,7 @@ add_block(ospfs_inode_t *oi)
 				free_block(allocated[1]);
 				oi->oi_indirect2 = 0;
 			}
-			else
-				return -ENOSPC;
+			return -ENOSPC;
 		}
 	}
 	else // n >= OSPFS_MAXFILEBLKS
@@ -887,7 +886,10 @@ remove_block(ospfs_inode_t *oi)
 		free_block(oi->oi_direct[n]);
 		// check if it's the last direct block
 		if (n == 0)
-			oi->oi_direct = 0;
+		{
+			block_ptr = ospfs_block(oi->oi_direct);
+			*(block_ptr) = 0;
+		}
 		else
 			oi->oi_direct[n] = 0;
 	}
@@ -902,7 +904,7 @@ remove_block(ospfs_inode_t *oi)
 			oi->oi_indirect = 0;
 		}
 		else
-			oi->oi_indirect + direct_index(n) = 0;
+			*(block_ptr + direct_index(n)) = 0;
 	}
 	else if (n < OSPFS_MAXFILEBLKS) // indirect^2
 	{
@@ -915,7 +917,7 @@ remove_block(ospfs_inode_t *oi)
 			oi->oi_indirect2 = 0;
 		}
 		else
-			oi->oi_indirect2 + indir_index(n) = 0;
+			*(block_ptr + indir_index(n)) = 0;
 	}
 	else // n >= OSPFS_MAXFILEBLKS
 		return -EIO;
@@ -1308,7 +1310,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	}
 	new_entry = create_blank_direntry(dir_oi);
 	if(ISERR(new_entry)) {
-		return PTR_ERR(new_entry));
+		return PTR_ERR(new_entry);
 	}
 	entry_ino = find_free_inode();
 	if(entry_ino == 0) {
@@ -1324,7 +1326,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	file_oi->oi_mode = mode;
 
 	for(index_off = 0; index_off < OSPFS_NDIRECT; ++index_off) {
-		file_oi->oi-direct[index_off] = 0;
+		file_oi->oi_direct[index_off] = 0;
 	}
 	file_oi->oi_indirect = 0;
 	file_oi->oi_indirect2 = 0;
