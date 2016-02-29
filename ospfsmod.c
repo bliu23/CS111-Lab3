@@ -765,7 +765,7 @@ add_block(ospfs_inode_t *oi)
 		else
 			return -ENOSPC;
 	}
-	else if (n >= OSPFS_NDIRECT) // indirect
+	else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT) // indirect
 	{
 		if(n == OSPFS_NDIRECT) // indirect block doesn't already exist
 		{
@@ -801,7 +801,7 @@ add_block(ospfs_inode_t *oi)
 			return -ENOSPC;
 		}
 	} 
-	else if (n >= OSPFS_NDIRECT + OSPFS_NINDIRECT) // doubly indirect, indirect^2 block already exists
+	else if (n < OSPFS_MAXFILEBLKS) // doubly indirect, indirect^2 block already exists
 	{	
 		if (n == OSPFS_NDIRECT + OSPFS_NINDIRECT) // doubly indirect, indirect^2 block does not already exist
 		{
@@ -872,8 +872,57 @@ remove_block(ospfs_inode_t *oi)
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
+	uint32_t *block_ptr = NULL;
+
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	if (n < 0)
+		return -EIO;
+	if (n == 0) // no blocks to free
+		return 0;
+
+	n = n-1; // index is n-1
+
+	if (n < OSPFS_NDIRECT) // free a direct block
+	{
+		free_block(oi->oi_direct[n]);
+		// check if it's the last direct block
+		if (n == 0)
+			oi->oi_direct = 0;
+		else
+			oi->oi_direct[n] = 0;
+	}
+	else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT) // indirect
+	{
+		block_ptr = ospfs_block(oi->oi_indirect);
+		free_block(block_ptr + direct_index(n)); // use direct index
+		// check if last indirect block
+		if (direct_index(n) == 0)
+		{
+			free_block(oi->oi_indirect); // free indirect block itself
+			oi->oi_indirect = 0;
+		}
+		else
+			oi->oi_indirect + direct_index(n) = 0;
+	}
+	else if (n < OSPFS_MAXFILEBLKS) // indirect^2
+	{
+		block_ptr = ospfs_block(oi->oi_indirect2);
+		free_block(block_ptr + indir_index(n)); // use indirect index
+		// check if last indirect^2 block
+		if (indir_index(n) == 0)
+		{
+			free_block(oi->oi_indirect2); // free indirect^2 block itself
+			oi->oi_indirect2 = 0;
+		}
+		else
+			oi->oi_indirect2 + indir_index(n) = 0;
+	}
+	else // n >= OSPFS_MAXFILEBLKS
+		return -EIO;
+
+	oi->oi_size -= OSPFS_BLKSIZE; // update inode size
+
+	return 0; // success
 }
 
 
