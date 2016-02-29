@@ -499,7 +499,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 }
 
 		 // if at end of directory
-		 if (f_pos == NULL)	 //?????? 
+		 if (f_pos == (dir_oi->oi_size) * OSPFS_DIRENTRY_SIZE)
 		 {
 		 	r = 1;
 		 	break;
@@ -587,7 +587,7 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 static uint32_t
 allocate_block(void)
 {
-	/* EXERCISE: Your code here */
+	// load free block bitmap block
 	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
 
 	for (int i = 0; i < ospfs_super->os_nblocks; i++) // 8192 bits total => ospfs_super->os_nblocks
@@ -616,15 +616,12 @@ allocate_block(void)
 static void
 free_block(uint32_t blockno)
 {
-	/* EXERCISE: Your code here */
-	// boot sector = 0
-	// superblock = 1
-	// bitmap = 2
-	// inode = 2 + N bits (N = ospfs_super->os_nblocks)
+	// load free block bitmap block 
 	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
 
+	// between free-block bitmap (2) and inode block
 	if (blockno >= 2 && blockno != ospfs_super->os_firstinob)
-		bitvector_set(free_block_bitmap, blockno);
+		bitvector_set(free_block_bitmap, blockno); // mark as free
 }
 
 
@@ -660,25 +657,12 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
-
-	// doubly-indirect = contains pointers to indirect blocks
-	// size = nindirect * nindirect
-
-	// ospfs_inode(ino)
-//	Use this function to load a 'ospfs_inode' structure from "disk".
-//
-//   Input:   ino -- inode number
-//   Returns: a pointer to the corresponding ospfs_inode structure
-	// ospfs_inode_blockno(oi, offset)
-//	Use this function to look up the blocks that are part of a file's
-//	contents.
-//
-//   Inputs:  oi     -- pointer to a OSPFS inode
-//	      offset -- byte offset into that inode
-//   Returns: the block number of the block that contains the 'offset'th byte
-//	      of the file
-	return -1;
+	// number of direct blocks + number of indirect blocks
+	// doubly indirect should be the remaining blocks
+	if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return 0;
+	else
+		return -1;
 }
 
 
@@ -696,8 +680,12 @@ indir2_index(uint32_t b)
 static int32_t
 indir_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+	if (b > OSPFS_NDIRECT) // b is an indirect block
+		return b - OSPFS_NDIRECT;
+	else if (b == OSPFS_NDIRECT) // b is first indirect block
+		return 0;
+	else // b is a direct block
+		return -1;
 }
 
 
@@ -713,8 +701,10 @@ indir_index(uint32_t b)
 static int32_t
 direct_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+	if (b > OSPFS_NDIRECT) // indirect block
+		return b - OSPFS_NDIRECT;
+	else // direct block
+		return b;
 }
 
 
