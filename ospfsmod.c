@@ -588,23 +588,16 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
-	uint32_t blockno = 2; // bitmap starts at block 2
-	uint32_t *vector = ?? // starts at block 2, not sure what vector means
+	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
 
 	for (int i = 0; i < ospfs_super->os_nblocks; i++) // 8192 bits total => ospfs_super->os_nblocks
 	{
-		if (bitvector_test(vector, i)) // 1 = free
+		if (bitvector_test(free_block_bitmap, i)) // 1 = free
 		{
-			bitvector_clear(vector, i); // allocate by setting it to non-free (0)
-			return block number;
+			bitvector_clear(free_block_bitmap, i); // allocate by setting it to non-free (0)
+			return i;
 		}
-	} // update vector??
-
-	//bitvector_clear // sets it to 0
-	//bitvector_set // sets it to 1
-	//bitvector_test // return val of bitvector
-
-
+	} 
 	return 0; // disk full, no blocks free
 }
 
@@ -628,8 +621,10 @@ free_block(uint32_t blockno)
 	// superblock = 1
 	// bitmap = 2
 	// inode = 2 + N bits (N = ospfs_super->os_nblocks)
-	if (blockno >= 2 && blockno != (2 + ospfs_super->os_nblocks))
-		bitvector_set(vector, blockno); // what is vector???
+	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
+
+	if (blockno >= 2 && blockno != ospfs_super->os_firstinob)
+		bitvector_set(free_block_bitmap, blockno);
 }
 
 
@@ -666,6 +661,23 @@ static int32_t
 indir2_index(uint32_t b)
 {
 	// Your code here.
+
+	// doubly-indirect = contains pointers to indirect blocks
+	// size = nindirect * nindirect
+
+	// ospfs_inode(ino)
+//	Use this function to load a 'ospfs_inode' structure from "disk".
+//
+//   Input:   ino -- inode number
+//   Returns: a pointer to the corresponding ospfs_inode structure
+	// ospfs_inode_blockno(oi, offset)
+//	Use this function to look up the blocks that are part of a file's
+//	contents.
+//
+//   Inputs:  oi     -- pointer to a OSPFS inode
+//	      offset -- byte offset into that inode
+//   Returns: the block number of the block that contains the 'offset'th byte
+//	      of the file
 	return -1;
 }
 
