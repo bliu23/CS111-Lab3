@@ -451,8 +451,9 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		/* If at the end of the directory, set 'r' to 1 and exit
 		 * the loop.  For now we do this all the time.
 		 *
-		 * EXERCISE: Your code here */
-		 if(f_pos -> 2 >= dir_oi->oi_size) {
+		 * EXERCISE: Your code here TODO: this is maybe right or wrong.*/
+		 if (f_pos == (dir_oi->oi_size) * OSPFS_DIRENTRY_SIZE)
+		 {
 		 	r = 1;
 		 	break;
 		 }
@@ -487,7 +488,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_DIR);
 		 	}
 		 	else { // entry_oi->oi_ftype == OSPFS_FTYPE_SYMLINK
-		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LINK);
+		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LNK);
 		 	}
 
 		 	if(ok_so_far >= 0) {
@@ -496,16 +497,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 }
 		 else {
 		 	f_pos += OSPFS_DIRENTRY_SIZE;
-		 }
-
-		 // if at end of directory
-		 if (f_pos == (dir_oi->oi_size) * OSPFS_DIRENTRY_SIZE)
-		 {
-		 	r = 1;
-		 	break;
-		 }
-		
-		
+		 }		
 	}
 
 	// Save the file position and return!
@@ -589,8 +581,8 @@ allocate_block(void)
 {
 	// load free block bitmap block
 	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
-
-	for (int i = 0; i < ospfs_super->os_nblocks; i++) // 8192 bits total => ospfs_super->os_nblocks
+	int i;
+	for (i = 0; i < ospfs_super->os_nblocks; i++) // 8192 bits total => ospfs_super->os_nblocks
 	{
 		if (bitvector_test(free_block_bitmap, i)) // 1 = free
 		{
@@ -809,8 +801,8 @@ add_block(ospfs_inode_t *oi)
 
 			if (allocated[1])
 			{
-				memset(ospfs_block(allocated[1]), 0, OSPFS_BLKSIZE);
-				oi->oi_indirect2 = allocated[1];
+				memset(ospfs_block((int)allocated[1]), 0, OSPFS_BLKSIZE);
+				oi->oi_indirect2 = (int)allocated[1];
 			}
 			else
 				return -ENOSPC;
@@ -887,7 +879,7 @@ remove_block(ospfs_inode_t *oi)
 		// check if it's the last direct block
 		if (n == 0)
 		{
-			block_ptr = ospfs_block(oi->oi_direct);
+			block_ptr = ospfs_block((int)oi->oi_direct);
 			*(block_ptr) = 0;
 		}
 		else
@@ -896,7 +888,7 @@ remove_block(ospfs_inode_t *oi)
 	else if (n < OSPFS_NDIRECT + OSPFS_NINDIRECT) // indirect
 	{
 		block_ptr = ospfs_block(oi->oi_indirect);
-		free_block(block_ptr + direct_index(n)); // use direct index
+		free_block((int)(block_ptr + direct_index(n))); // use direct index
 		// check if last indirect block
 		if (direct_index(n) == 0)
 		{
@@ -909,7 +901,7 @@ remove_block(ospfs_inode_t *oi)
 	else if (n < OSPFS_MAXFILEBLKS) // indirect^2
 	{
 		block_ptr = ospfs_block(oi->oi_indirect2);
-		free_block(block_ptr + indir_index(n)); // use indirect index
+		free_block((int)(block_ptr + indir_index(n))); // use indirect index
 		// check if last indirect^2 block
 		if (indir_index(n) == 0)
 		{
@@ -967,8 +959,9 @@ remove_block(ospfs_inode_t *oi)
 static int
 change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
-	uint32_t old_size = oi->oi_size;
-	int r = 0;
+	/* commented out to remove warnings. */
+	//uint32_t old_size = oi->oi_size;
+	//int r = 0;
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 		// need to add blocks
