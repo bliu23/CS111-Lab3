@@ -749,41 +749,98 @@ add_block(ospfs_inode_t *oi)
 	uint32_t *allocated[2] = { 0, 0 };
 
 	/* EXERCISE: Your code here */
-	uint32_t new_allocated_indirect = 0;
-	uint32_t new_allocated_indirect2 = 0;
 	uint32_t new_block = 0;
 	uint32_t *block_ptr = NULL;
 
-	if(n == OSPFS_MAXFILEBLKS) {
-		//TODO
-	}
-
-	void *free_block_bitmap = ospfs_block(OSPFS_FREEMAP_BLK);
-	new_block = allocate_block();
-	if(new_block) {
-		zero_out_block(new_block);
-	}
-	else {
-		return -ENOSPC;
-	}
-
-
-	if(n > OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-		//TODO may need to allocate a new indrect block		
-	}
-	else if(n == OSPFS_NDIRECT + OSPFS_NINDIRECT) {
-		//TODO allocate a new indirect2 block and a new indrect block
-	}
-	else if (n >= OSPFS_NDIRECT) {
-		if(n == OSPFS_NDIRECT) {
-			//TODO allocate a new indirect block
+	if (n < 0) // invalid n
+		return -EIO;
+	else if (n < OSPFS_NDIRECT) // direct
+	{
+		new_block = allocate_block(); // allocate direct block
+		if (new_block)
+		{
+			memset(ospfs_block(new_block), 0, OSPFS_BLKSIZE); // zero out block
+			oi->oi_direct[n] = new_block; // store disk block number in inode
 		}
-		//TODO allocate a new indirect block
-	} 
-	else { //n < OSPFS_NDIRECT
-		//TODO 
+		else
+			return -ENOSPC;
 	}
-	return -EIO; // Replace this line
+	else if (n >= OSPFS_NDIRECT) // indirect
+	{
+		if(n == OSPFS_NDIRECT) // indirect block doesn't already exist
+		{
+			// allocate the indirect block itself
+			allocated[0] = allocate_block();
+
+			if (allocated[0]) // if successful
+			{
+				memset(ospfs_block(allocated[0]), 0, OSPFS_BLKSIZE); // zero it out
+				oi->oi_indirect = allocated[0]; // update inode stuff
+			}
+			else
+				return -ENOSPC;
+
+		}
+		// allocate a block for the indirect block
+		new_block = allocate_block();
+		if (new_block) // allocate_block returns the block number
+		{
+			memset(ospfs_block(new_block), 0, OSPFS_BLKSIZE);
+			// get pointer to the indirect block, then set new block at correct offset
+			block_ptr = ospfs_block(oi->oi_indirect);
+			*(block_ptr + dir_index(n)) = new_block; // use the direct index
+		}
+		else 
+		{
+			// free the indirect block you might have allocated
+			if (allocated[0])
+			{
+				free_block(allocated[0]);
+				oi->oi_indirect = 0;
+			}
+			return -ENOSPC;
+		}
+	} 
+	else if (n >= OSPFS_NDIRECT + OSPFS_NINDIRECT) // doubly indirect, indirect^2 block already exists
+	{	
+		if (n == OSPFS_NDIRECT + OSPFS_NINDIRECT) // doubly indirect, indirect^2 block does not already exist
+		{
+			allocated[1] = allocate_block();
+
+			if (allocated[1])
+			{
+				memset(ospfs_block(allocated[1]), 0, OSPFS_BLKSIZE);
+				oi->oi_indirect2 = allocated[1];
+			}
+			else
+				return -ENOSPC;
+		}
+
+		// allocate new doubly indirect block
+		new_block = allocate_block(); 
+		if (new_block)
+		{
+			memset(ospfs_block(new_block), 0, OSPFS_BLKSIZE);
+			block_ptr = ospfs_block(oi->oi_indirect2);
+			*(block_ptr + indir_index(n)) = new_block; // use indirect index
+		}
+		else
+		{
+			// free the indirect^2 block you might have allocated
+			if (allocated[1])
+			{
+				free_block(allocated[1]);
+				oi->oi_indirect2 = 0;
+			}
+			else
+				return -ENOSPC;
+		}
+	}
+	else // n >= OSPFS_MAXFILEBLKS
+		return -ENOSPC;
+
+	oi->oi_size += OSPFS_BLKSIZE; // update inode size
+	return 0; // success
 }
 
 
