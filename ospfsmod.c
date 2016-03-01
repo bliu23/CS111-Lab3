@@ -740,7 +740,6 @@ add_block(ospfs_inode_t *oi)
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t *allocated[2] = { 0, 0 };
 
-	/* EXERCISE: Your code here */
 	uint32_t new_block = 0;
 	uint32_t *block_ptr = NULL;
 
@@ -862,10 +861,8 @@ remove_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
-
 	uint32_t *block_ptr = NULL;
 
-	/* EXERCISE: Your code here */
 	if (n < 0)
 		return -EIO;
 	if (n == 0) // no blocks to free
@@ -959,7 +956,6 @@ remove_block(ospfs_inode_t *oi)
 static int
 change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
-	/* commented out to remove warnings. */
 	uint32_t old_size = oi->oi_size;
 	int r = 0;
 
@@ -1058,8 +1054,6 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
 	// Make sure we don't read past the end of the file!
 	// Change 'count' so we never read past the end of the file.
-	/* EXERCISE: Your code here */
-	//discussion
 	if(count > oi->oi_size - *f_pos) {
 		count = oi->oi_size - *f_pos;
 	} 
@@ -1069,9 +1063,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos); //this func returns the corresponding block number;
 		uint32_t n;
 		char *data;
-		//discussion, declare variable
 		uint32_t offset;
-
 		// ospfs_inode_blockno returns 0 on error
 		if (blockno == 0) {
 			retval = -EIO;
@@ -1082,16 +1074,16 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		// Copy data into user space. Return -EFAULT if unable to write
 		// into user space.
 		// Use variable 'n' to track number of bytes moved.
-		/* EXERCISE: Your code here */
 		
 		data = ospfs_block(blockno);		//returns the pointer pointing to this block.
-		//discussion, compute offset. points to start of block but maybe we're in the middle of the block. (offset)
+		//compute offset. points to start of block but maybe we're in the middle of the block. (offset)
 		offset = *f_pos % OSPFS_BLKSIZE;	//use current position and block size to compute exact position in the block (offset)
 		n = OSPFS_BLKSIZE - offset;			//how many bytes left in block.
 		if(n > count - amount) {			//wait what does this do? it's a max to the amount.
 			n = count - amount;
 		}
-		retval = copy_to_user(buffer, &(data[offset]),n);	//check the spec to see what this does. 
+		retval = copy_to_user(buffer, &(data[offset]), n);	//check the spec to see what this does. 
+		//retval = copy_to_user(buffer, data + offset, n);
 		
 		if(retval != 0) {					
 			retval = -EFAULT;
@@ -1134,13 +1126,11 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
-	/* EXERCISE: Your code here */
 	if (filp->f_flags & O_APPEND)
 		*f_pos = oi->oi_size;
 
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
-	/* EXERCISE: Your code here */
 	if(count > oi->oi_size - *f_pos) {
 		if (change_size(oi, *f_pos+count) < 0) // in case of failure
 			goto done;
@@ -1151,6 +1141,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
 		uint32_t n;
 		char *data;
+		uint32_t offset;
 
 		if (blockno == 0) {
 			retval = -EIO;
@@ -1163,7 +1154,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
-		/* EXERCISE: Your code here */
+		offset = *f_pos % OSPFS_BLKSIZE;
 		n = OSPFS_BLKSIZE - (*f_pos % OSPFS_BLKSIZE);
 
 		if(n > count - amount) {
