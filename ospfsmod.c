@@ -452,7 +452,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here TODO: this is maybe right or wrong.*/
-		 if (f_pos == (dir_oi->oi_size) * OSPFS_DIRENTRY_SIZE)
+		 if (f_pos - 2 == (dir_oi->oi_size))
 		 {
 		 	r = 1;
 		 	break;
@@ -482,13 +482,13 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 if(od->od_ino) {	//if this isn't 0
 		 	entry_oi = ospfs_inode(od->od_ino);	//return pointer to the inode
 		 	if(entry_oi->oi_ftype == OSPFS_FTYPE_REG) {
-		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_REG);
+		 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_REG);
 		 	}
 		 	else if(entry_oi->oi_ftype == OSPFS_FTYPE_DIR) {
-		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_DIR);
+		 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_DIR);
 		 	}
 		 	else { // entry_oi->oi_ftype == OSPFS_FTYPE_SYMLINK
-		 		ok_so_far = fill_dir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LNK);
+		 		ok_so_far = filldir(dirent, od->od_name, strlen(od->od_name), f_pos, od->od_ino, DT_LNK);
 		 	}
 
 		 	if(ok_so_far >= 0) {
@@ -637,13 +637,13 @@ free_block(uint32_t blockno)
 
 
 // int32_t indir2_index(uint32_t b)
-//	Returns the doubly-indirect block index for file block b.
-//
+// 	Returns the doubly-indirect block index for file block b.
+
 // Inputs:  b -- the zero-based index of the file block (e.g., 0 for the first
-//		 block, 1 for the second, etc.)
+// 		 block, 1 for the second, etc.)
 // Returns: 0 if block index 'b' requires using the doubly indirect
-//	       block, -1 if it does not.
-//
+// 	       block, -1 if it does not.
+
 // EXERCISE: Fill in this function.
 
 static int32_t
@@ -659,14 +659,14 @@ indir2_index(uint32_t b)
 
 
 // int32_t indir_index(uint32_t b)
-//	Returns the indirect block index for file block b.
-//
+// 	Returns the indirect block index for file block b.
+// 
 // Inputs:  b -- the zero-based index of the file block
 // Returns: -1 if b is one of the file's direct blocks;
-//	    0 if b is located under the file's first indirect block;
-//	    otherwise, the offset of the relevant indirect block within
-//		the doubly indirect block.
-//
+// 	    0 if b is located under the file's first indirect block;
+// 	    otherwise, the offset of the relevant indirect block within
+// 		the doubly indirect block.
+// 
 // EXERCISE: Fill in this function.
 
 static int32_t
@@ -699,6 +699,61 @@ direct_index(uint32_t b)
 		return b;
 }
 
+
+static int32_t
+indir2_index_DELETEME(uint32_t b)
+{
+	// Block number is not small enough to be contained by direct pointers and indirect pointers
+	if (b > OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return 0;
+
+	return -1;
+}
+
+
+// int32_t indir_index(uint32_t b)
+//	Returns the indirect block index for file block b.
+//
+// Inputs:  b -- the zero-based index of the file block
+// Returns: -1 if b is one of the file's direct blocks;
+//	    0 if b is located under the file's first indirect block;
+//	    otherwise, the offset of the relevant indirect block within
+//		the doubly indirect block.
+
+static int32_t
+indir_index_DELETEME(uint32_t b)
+{
+	// Your code here.
+	if (b < OSPFS_NDIRECT)
+		return -1;
+
+	if (b <= OSPFS_NDIRECT + OSPFS_NINDIRECT)	// adds up to 266
+		return 0;
+
+	uint32_t offset = (b - OSPFS_NDIRECT - OSPFS_NINDIRECT) / OSPFS_NINDIRECT;
+
+	return offset;
+}
+
+
+// int32_t indir_index(uint32_t b)
+//	Returns the indirect block index for file block b.
+//
+// Inputs:  b -- the zero-based index of the file block
+// Returns: the index of block b in the relevant indirect block or the direct
+//	    block array.
+
+static int32_t
+direct_index_DELETEME(uint32_t b)
+{
+	if (b < OSPFS_NDIRECT)
+		return b;
+
+	if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return b - OSPFS_NDIRECT;
+
+	return (b - OSPFS_NDIRECT - OSPFS_NINDIRECT) % OSPFS_NINDIRECT;
+}
 
 // add_block(ospfs_inode_t *oi)
 //   Adds a single data block to a file, adding indirect and
@@ -779,7 +834,7 @@ add_block(ospfs_inode_t *oi)
 			memset(ospfs_block(new_block), 0, OSPFS_BLKSIZE);
 			// get pointer to the indirect block, then set new block at correct offset
 			block_ptr = ospfs_block(oi->oi_indirect);
-			*(block_ptr + dir_index(n)) = new_block; // use the direct index
+			*(block_ptr + direct_index(n)) = new_block; // use the direct index
 		}
 		else 
 		{
@@ -916,6 +971,219 @@ remove_block(ospfs_inode_t *oi)
 	return 0; // success
 }
 
+static void
+ospfs_zero_block(uint32_t blockno) {
+	uint32_t* ptr = (uint32_t*)(ospfs_block(blockno));
+	int i = 0;
+	while (i < OSPFS_BLKSIZE)
+		ptr[i++] = 0;
+}
+
+static int
+add_block_DELETEME(ospfs_inode_t *oi)
+{
+	// Used to find the current block index of the file
+	uint32_t doublyIndirectBlock;
+	uint32_t indirectBlock;
+	uint32_t directBlock;
+	
+	// Used to store block in its appropriate place for the file
+	uint32_t* indirectBlocks;
+	uint32_t* directBlocks;
+
+	// current number of blocks in file
+	uint32_t n = ospfs_size2nblocks(oi->oi_size);
+
+	if (n >= OSPFS_MAXFILEBLKS)
+		return -ENOSPC;
+
+	// keep track of allocations to free in case of -ENOSPC
+	uint32_t *allocated[3] = { 0, 0, 0 };
+
+	doublyIndirectBlock = indir2_index_DELETEME(n);
+	// A value of -1 for requiresIndirectBlook means there's no indirect block
+	indirectBlock = indir_index_DELETEME(n);
+	directBlock = direct_index_DELETEME(n);
+
+	allocated[0] = allocate_block();
+	if (allocated[0] == 0)
+		return -ENOSPC;
+	ospfs_zero_block(allocated[0]);
+
+	// need to add 3 blocks
+	if ((doublyIndirectBlock == -1) && (indirectBlock == 0) && (directBlock == 0) && n != OSPFS_NDIRECT) {
+		allocated[1] = allocate_block();
+		if (allocated[1] == 0) {
+			free_block(allocated[0]);
+			return -ENOSPC;
+		}
+		ospfs_zero_block(allocated[1]);
+
+		allocated[2] = allocate_block();
+		if (allocated[2] == 0) {
+			free_block(allocated[0]);
+			free_block(allocated[1]);
+			return -ENOSPC;
+		}
+		ospfs_zero_block(allocated[2]);
+
+		oi->oi_indirect2 = allocated[0];
+		indirectBlocks = ospfs_block(oi->oi_indirect2);
+		indirectBlocks[indirectBlock] = allocated[1];
+		directBlocks = ospfs_block(indirectBlocks[indirectBlock]);
+		directBlocks[directBlock] = allocated[2];
+	}
+
+	// need to add 2 blocks from having just direct pointers
+	else if (n == OSPFS_NDIRECT) {
+		allocated[1] = allocate_block();
+		if (allocated[1] == 0) {
+			free_block(allocated[0]);
+			return -ENOSPC;
+		}
+		ospfs_zero_block(allocated[1]);
+
+		oi->oi_indirect = allocated[0];
+		directBlocks = ospfs_block(oi->oi_indirect);
+		directBlocks[directBlock] = allocated[1];
+	}
+
+	// need to add 2 blocks in a doubly indirect block
+	else if ((doublyIndirectBlock == 0) && (directBlock == 0)) {
+		allocated[1] = allocate_block();
+		if (allocated[1] == 0) {
+			free_block(allocated[0]);
+			return -ENOSPC;
+		}
+		ospfs_zero_block(allocated[1]);
+
+		indirectBlocks = ospfs_block(oi->oi_indirect2);
+		indirectBlocks[indirectBlock] = allocated[0];
+		directBlocks = ospfs_block(indirectBlocks[indirectBlock]);
+		directBlocks[directBlock] = allocated[1];
+	}
+
+	// need to add 1 block in a doubly indirect block
+	else if (doublyIndirectBlock == 0) {
+		indirectBlocks = ospfs_block(oi->oi_indirect2);
+		directBlocks = ospfs_block(indirectBlocks[indirectBlock]);
+		directBlocks[directBlock] == allocated[0];
+	}
+
+	// need to add 1 block in a indirect block
+	else if (indirectBlock == 0) {
+		directBlocks = ospfs_block(oi->oi_indirect);
+		directBlocks[directBlock] = allocated[0];
+	}
+
+	// need to add 1 block to the direct block pointers
+	else  {
+		oi->oi_direct[directBlock] = allocated[0];
+	}
+
+	// POSSIBLE TODO: could change this variable to be tighter
+	oi->oi_size += OSPFS_BLKSIZE;
+	return 0;
+}
+
+
+// remove_block(ospfs_inode_t *oi)
+//   Removes a single data block from the end of a file, freeing
+//   any indirect and indirect^2 blocks that are no
+//   longer needed. (Helper function for change_size)
+//
+// Inputs: oi -- pointer to the file we want to shrink
+// Returns: 0 if successful, < 0 on error.
+//          If the function is successful, then oi->oi_size
+//          should be set to the maximum file size that could
+//          fit in oi's blocks.  If the function returns -EIO (for
+//          instance if an indirect block that should be there isn't),
+//          then oi->oi_size should remain unchanged.
+//
+// Remember that you must free any indirect and doubly-indirect blocks
+// that are no longer necessary after shrinking the file.  Removing a
+// single data block could result in as many as 3 disk blocks being
+// deallocated.  Also, if you free a block, make sure that
+// you set the block pointer to 0.  Don't leave pointers to
+// deallocated blocks laying around!
+static int
+remove_block_DELETEME(ospfs_inode_t *oi)
+{
+	// Used to find the current block index of the file
+	uint32_t doublyIndirectBlock;
+	uint32_t indirectBlock;
+	uint32_t directBlock;
+
+	// Used to store block in its appropriate place for the file
+	uint32_t* indirectBlocks;
+	uint32_t* directBlocks;
+
+	// current number of blocks in file
+	uint32_t n = ospfs_size2nblocks(oi->oi_size);
+
+	doublyIndirectBlock = indir2_index_DELETEME(n);
+	// A value of -1 for requiresIndirectBlook means there's no indirect block
+	indirectBlock = indir_index_DELETEME(n);
+	directBlock = direct_index_DELETEME(n);
+
+	// Free 3 blocks
+	if ((doublyIndirectBlock == 0) && (indirectBlock == 0) && (directBlock == 0)) {
+		indirectBlocks = (uint32_t*)ospfs_block(oi->oi_indirect2);
+		directBlocks = (uint32_t*)ospfs_block(indirectBlocks[indirectBlock]);
+
+		free_block(directBlocks[directBlock]);
+		free_block(indirectBlocks[indirectBlock]);
+		free_block(oi->oi_indirect2);
+		oi->oi_indirect2 = 0;
+	}
+
+	// Free 2 blocks so that there are only direct pointers
+	else if ((doublyIndirectBlock == -1) && (indirectBlock == 0) && (directBlock == 0)) {
+		directBlocks = (uint32_t*)ospfs_block(oi->oi_indirect);
+
+		free_block(directBlocks[directBlock]);
+		free_block(oi->oi_indirect);
+		oi->oi_indirect = 0;
+	}
+
+	//Free 2 blocks by getting rid of an indirect block from the doubly indirect block
+	else if ((doublyIndirectBlock == 0) && (directBlock == 0)) {
+		indirectBlocks = (uint32_t*)ospfs_block(oi->oi_indirect2);
+		directBlocks = (uint32_t*)ospfs_block(indirectBlocks[indirectBlock]);
+
+		free_block(directBlocks[directBlock]);
+		free_block(indirectBlocks[indirectBlock]);
+		indirectBlocks[indirectBlock] = 0;
+	}
+
+	// Free 1 block in an doubly indirect block
+	else if (doublyIndirectBlock == 0) {
+		indirectBlocks = (uint32_t*)ospfs_block(oi->oi_indirect2);
+		directBlocks = (uint32_t*)ospfs_block(indirectBlocks[indirectBlock]);
+
+		free_block(directBlocks[directBlock]);
+		directBlocks[directBlock] = 0;
+	}
+
+	// Free 1 block in the only indirect block
+	else if (indirectBlock == 0) {
+		directBlocks = (uint32_t*)ospfs_block(oi->oi_indirect);
+
+		free_block(directBlocks[directBlock]);
+		directBlocks[directBlock] = 0;
+	}
+
+	// Free 1 block from the direct block pointers
+	else {
+		free_block(oi->oi_direct[directBlock]);
+		oi->oi_direct[directBlock] = 0;
+	}
+
+	// POSSIBLE TODO: could change this variable to be tighter
+	oi->oi_size -= OSPFS_BLKSIZE;
+	return 0;
+}
+
 
 // change_size(oi, want_size)
 //	Use this function to change a file's size, allocating and freeing
@@ -969,7 +1237,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	{
 		while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size))
 		{
-			r = remove_block(oi);
+			r = remove_block_DELETEME(oi);
 		}
 		oi->oi_size = old_size;
 		return -ENOSPC;
@@ -980,7 +1248,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	}
 
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) { // need to remove blocks
-		r = remove_block(oi);
+		r = remove_block_DELETEME(oi);
 		if (r < 0) // error in removing block
 		{
 			oi->oi_size = old_size;
@@ -991,6 +1259,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	oi->oi_size = new_size;
 	return 0; // success
 }
+
 
 
 // ospfs_notify_change
@@ -1161,7 +1430,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 			n = count - amount;
 		}
 
-		retval = copy_from_user(data, buffer, n);
+		retval = copy_from_user(&data[offset], buffer, n);
 
 		if (retval != 0)
 		{
@@ -1370,7 +1639,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	}
 
 	new_entry = create_blank_direntry(dir_oi);
-	if(ISERR(new_entry)) {
+	if(IS_ERR(new_entry)) {
 		return PTR_ERR(new_entry);
 	}
 
